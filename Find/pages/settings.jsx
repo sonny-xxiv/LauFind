@@ -1,20 +1,40 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../src/AuthContext";
 import Navbar from "../src/Navbar";
 import Dashbar from "../src/dashbar";
 import { User, Mail, ShieldCheck } from "lucide-react";
+import supabase from "../src/config/supabaseClient";
 
 const Settings = () => {
   const { currentUser } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [profile, setProfile] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-  };
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const closeSidebar = () => setIsSidebarOpen(false);
 
-  const closeSidebar = () => {
-    setIsSidebarOpen(false);
-  };
+  useEffect(() => {
+    async function fetchProfile() {
+      if (!currentUser) return;
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", currentUser.id) // match logged in user
+        .single(); // returns one object, not an array
+
+      if (error) {
+        console.error("Error fetching profile:", error.message);
+      } else {
+        setProfile(data);
+      }
+
+      setLoadingProfile(false);
+    }
+
+    fetchProfile();
+  }, [currentUser]);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -35,53 +55,58 @@ const Settings = () => {
               </p>
             </div>
 
-            <section className="rounded-4xl bg-white p-6 shadow-lg border border-gray-200">
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-4">
-                  <div className="rounded-3xl bg-slate-50 p-5">
-                    <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
-                      <User className="h-5 w-5 text-indigo-500" />
-                      <span>Full Name</span>
+            {loadingProfile ? (
+              <p className="text-gray-500">Loading profile...</p>
+            ) : (
+              <section className="rounded-4xl bg-white p-6 shadow-lg border border-gray-200">
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-4">
+                    <div className="rounded-3xl bg-slate-50 p-5">
+                      <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                        <User className="h-5 w-5 text-indigo-500" />
+                        <span>Full Name</span>
+                      </div>
+                      <p className="mt-3 text-lg font-semibold text-gray-900">
+                        {/* ✅ Now reading from profiles table */}
+                        {profile?.first_name || "-"} {profile?.last_name || "-"}
+                      </p>
                     </div>
-                    <p className="mt-3 text-lg font-semibold text-gray-900">
-                      {currentUser?.firstName || "-"}{" "}
-                      {currentUser?.lastName || ""}
-                    </p>
+
+                    <div className="rounded-3xl bg-slate-50 p-5">
+                      <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                        <Mail className="h-5 w-5 text-teal-500" />
+                        <span>Email Address</span>
+                      </div>
+                      <p className="mt-3 text-lg font-semibold text-gray-900">
+                        {/* ✅ Email comes from Supabase auth user */}
+                        {currentUser?.email || "-"}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="rounded-3xl bg-slate-50 p-5">
-                    <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
-                      <Mail className="h-5 w-5 text-teal-500" />
-                      <span>Email Address</span>
+                  <div className="space-y-4">
+                    <div className="rounded-3xl bg-slate-50 p-5">
+                      <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                        <ShieldCheck className="h-5 w-5 text-amber-500" />
+                        <span>User Role</span>
+                      </div>
+                      <p className="mt-3 text-lg font-semibold text-gray-900 capitalize">
+                        {/* ✅ user_type from profiles table */}
+                        {profile?.user_type || "-"}
+                      </p>
                     </div>
-                    <p className="mt-3 text-lg font-semibold text-gray-900">
-                      {currentUser?.email || "-"}
-                    </p>
+                    <div className="rounded-3xl bg-slate-50 p-5">
+                      <div className="text-sm font-semibold text-gray-700">
+                        Account Status
+                      </div>
+                      <p className="mt-3 text-lg font-semibold text-green-600">
+                        Active
+                      </p>
+                    </div>
                   </div>
                 </div>
-
-                <div className="space-y-4">
-                  <div className="rounded-3xl bg-slate-50 p-5">
-                    <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
-                      <ShieldCheck className="h-5 w-5 text-amber-500" />
-                      <span>User Role</span>
-                    </div>
-                    <p className="mt-3 text-lg font-semibold text-gray-900 capitalize">
-                      {currentUser?.userType || "-"}
-                    </p>
-                  </div>
-
-                  <div className="rounded-3xl bg-slate-50 p-5">
-                    <div className="text-sm font-semibold text-gray-700">
-                      Account Status
-                    </div>
-                    <p className="mt-3 text-lg font-semibold text-gray-900">
-                      Active
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </section>
+              </section>
+            )}
           </div>
         </main>
       </div>

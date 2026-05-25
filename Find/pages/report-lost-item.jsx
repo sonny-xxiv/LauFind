@@ -3,19 +3,31 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../src/AuthContext";
 import Navbar from "../src/Navbar";
 import Dashbar from "../src/dashbar";
-import { ArrowLeft, Package, MapPin, Calendar, FileText } from "lucide-react";
+import supabase from "../src/config/supabaseClient";
+import {
+  ArrowLeft,
+  Package,
+  MapPin,
+  Calendar,
+  FileText,
+  Upload,
+  X,
+} from "lucide-react";
 
 const ReportLostItem = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     itemName: "",
     category: "",
     description: "",
     dateLost: "",
     location: "",
+    image: null,
   });
+  const [imagePreview, setImagePreview] = useState(null);
 
   const categories = [
     "electronics",
@@ -29,33 +41,91 @@ const ReportLostItem = () => {
     "others",
   ];
 
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-  };
-
-  const closeSidebar = () => {
-    setIsSidebarOpen(false);
-  };
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const closeSidebar = () => setIsSidebarOpen(false);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select a valid image file");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image size must be less than 5MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData((prev) => ({ ...prev, image: file })); // store actual file for upload
+      setImagePreview(reader.result); // preview stays as base64
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = () => {
+    setFormData((prev) => ({ ...prev, image: null }));
+    setImagePreview(null);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Here you would typically send the data to your backend
-    console.log("Lost item report:", formData);
-    // For now, just navigate back to dashboard
-    navigate("/dashboard");
+
+    if (!formData.image) {
+      alert("Please upload an image of the lost item");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Step 1: Upload image to Supabase Storage
+      const fileExt = formData.image.name.split(".").pop();
+      const fileName = `${currentUser.id}-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("item-images") // storage bucket name
+        .upload(fileName, formData.image);
+
+      if (uploadError) throw new Error(uploadError.message);
+
+      // Step 2: Get the public URL of the uploaded image
+      const { data: urlData } = supabase.storage
+        .from("item-images")
+        .getPublicUrl(fileName);
+
+      // Step 3: Save item data to lost_items table
+      const { error: insertError } = await supabase.from("lost_items").insert({
+        user_id: currentUser.id,
+        item_name: formData.itemName,
+        category: formData.category,
+        description: formData.description,
+        date_lost: formData.dateLost,
+        location: formData.location,
+        image_url: urlData.publicUrl,
+        status: "open",
+      });
+
+      if (insertError) throw new Error(insertError.message);
+
+      alert("Lost item reported successfully!");
+      navigate("/lost-items");
+    } catch (err) {
+      console.error("Error submitting report:", err.message);
+      alert("Something went wrong: " + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCancel = () => {
-    navigate("/dashboard");
-  };
+  const handleCancel = () => navigate("/dashboard");
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -201,6 +271,51 @@ const ReportLostItem = () => {
                         placeholder="Provide any additional details that might help identify your item (color, brand, distinguishing features, etc.)"
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-verde focus:border-verde transition-colors resize-vertical"
                       />
+                    </div>
+                  </div>
+
+                  {/* Image Upload */}
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Upload Image of Item *
+                    </label>
+                    <div className="space-y-4">
+                      {!imagePreview ? (
+                        <div className="relative border-2 border-dashed border-gray-300 rounded-lg p-8 hover:border-verde transition-colors cursor-pointer">
+                          <input
+                            type="file"
+                            id="image"
+                            name="image"
+                            accept="image/*"
+                            onChange={handleImageChange}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          />
+                          <div className="text-center">
+                            <Upload className="h-10 w-10 text-gray-400 mx-auto mb-2" />
+                            <p className="text-sm font-medium text-gray-700">
+                              Click to upload or drag and drop
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              PNG, JPG, GIF up to 5MB
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="relative rounded-lg overflow-hidden bg-gray-50 border border-gray-300">
+                          <img
+                            src={imagePreview}
+                            alt="Preview"
+                            className="w-full h-64 object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleRemoveImage}
+                            className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-2 transition-colors"
+                          >
+                            <X size={18} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

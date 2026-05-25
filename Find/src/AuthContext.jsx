@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
+import supabase from "./config/supabaseClient";
 
 const AuthContext = createContext();
 
@@ -11,56 +12,52 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in on app start
-    const user = localStorage.getItem("currentUser");
-    if (user) {
-      try {
-        setCurrentUser(JSON.parse(user));
-      } catch (e) {
-        console.error("Failed to parse stored user:", e);
-        localStorage.removeItem("currentUser");
-      }
-    }
-    setLoading(false);
+    // Get session on app start
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setCurrentUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    // Listen for login/logout changes across the app
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const signup = (userData) => {
-    // Check if user already exists
-    const users = JSON.parse(localStorage.getItem("users") || "[]");
-    const existingUser = users.find((user) => user.email === userData.email);
-    if (existingUser) {
-      throw new Error("User already exists");
-    }
+  const signup = async ({ firstName, lastName, email, password, userType }) => {
+    // Step 1: Create the auth account
+    const { data, error } = await supabase.auth.signUp({ email, password });
 
-    // Add new user
-    const newUser = {
-      id: Date.now(),
-      ...userData,
-    };
-    users.push(newUser);
-    localStorage.setItem("users", JSON.stringify(users));
+    if (error) throw new Error(error.message);
 
-    // Log in the user
-    setCurrentUser(newUser);
-    localStorage.setItem("currentUser", JSON.stringify(newUser));
+    // Step 2: Save extra profile data
+    const { error: profileError } = await supabase.from("profiles").insert({
+      id: data.user.id,
+      first_name: firstName,
+      last_name: lastName,
+      user_type: userType,
+    });
+
+    if (profileError) throw new Error(profileError.message);
   };
 
-  const login = (email, password) => {
-    const users = JSON.parse(localStorage.getItem("users") || "[]");
-    const user = users.find(
-      (user) => user.email === email && user.password === password,
-    );
-    if (!user) {
-      throw new Error("Invalid credentials");
-    }
+  const login = async (email, password) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-    setCurrentUser(user);
-    localStorage.setItem("currentUser", JSON.stringify(user));
+    if (error) throw new Error(error.message);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw new Error(error.message);
     setCurrentUser(null);
-    localStorage.removeItem("currentUser");
   };
 
   const value = {
@@ -71,5 +68,9 @@ export const AuthProvider = ({ children }) => {
     loading,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {!loading && children}
+    </AuthContext.Provider>
+  );
 };

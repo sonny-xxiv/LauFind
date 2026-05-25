@@ -53,16 +53,25 @@ const Dashbar = ({ isOpen, onClose }) => {
           </div>
           <hr className="mb-5 border-white w-full" />
           <nav className="space-y-2">
-            {navItems.map(({ label, Icon }) => (
-              <button
-                key={label}
-                type="button"
-                className="w-full flex items-center gap-3 rounded-lg px-4 py-3 text-left text-white hover:bg-white/30 transition"
-              >
-                <Icon className="h-5 w-5" />
-                <span>{label}</span>
-              </button>
-            ))}
+            {navItems.map(({ label, Icon }) => {
+              let route = "/dashboard";
+              if (label === "Lost Items") route = "/lost-items";
+              if (label === "Found Items") route = "/found-items";
+              if (label === "Search") route = "/search";
+              if (label === "Claims") route = "/claims";
+
+              return (
+                <Link
+                  key={label}
+                  to={route}
+                  onClick={onClose}
+                  className="w-full flex items-center gap-3 rounded-lg px-4 py-3 text-left text-white hover:bg-white/30 transition"
+                >
+                  <Icon className="h-5 w-5" />
+                  <span>{label}</span>
+                </Link>
+              );
+            })}
           </nav>
         </div>
       </div>

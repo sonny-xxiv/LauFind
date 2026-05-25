@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../src/AuthContext";
+import { useItems } from "../src/ItemsContext";
 import Navbar from "../src/Navbar";
 import Dashbar from "../src/dashbar";
 import {
@@ -10,10 +11,13 @@ import {
   Calendar,
   FileText,
   Warehouse,
+  Upload,
+  X,
 } from "lucide-react";
 
 const ReportFoundItem = () => {
   const { currentUser } = useAuth();
+  const { addFoundItem } = useItems();
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -23,7 +27,9 @@ const ReportFoundItem = () => {
     dateFound: "",
     locationFound: "",
     storageLocation: "",
+    image: null,
   });
+  const [imagePreview, setImagePreview] = useState(null);
 
   const categories = [
     "electronics",
@@ -53,12 +59,63 @@ const ReportFoundItem = () => {
     }));
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        alert("Please select a valid image file");
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert("Image size must be less than 5MB");
+        return;
+      }
+
+      // Convert to base64
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData((prev) => ({
+          ...prev,
+          image: reader.result,
+        }));
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setFormData((prev) => ({
+      ...prev,
+      image: null,
+    }));
+    setImagePreview(null);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Here you would typically send the data to your backend
-    console.log("Found item report:", formData);
-    // For now, just navigate back to dashboard
-    navigate("/dashboard");
+
+    if (!formData.image) {
+      alert("Please upload an image of the found item");
+      return;
+    }
+
+    // Create item data with user info
+    const itemData = {
+      ...formData,
+      reportedBy: currentUser?.username || currentUser?.email || "Anonymous",
+      reporterEmail: currentUser?.email,
+    };
+
+    // Add item to context (saved to localStorage)
+    addFoundItem(itemData);
+
+    console.log("Found item report submitted:", itemData);
+    alert("Thank you for reporting the found item!");
+    navigate("/found-items");
   };
 
   const handleCancel = () => {
@@ -235,6 +292,51 @@ const ReportFoundItem = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Image Upload */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Upload Image of Item *
+                  </label>
+                  <div className="space-y-4">
+                    {!imagePreview ? (
+                      <div className="relative border-2 border-dashed border-gray-300 rounded-lg p-8 hover:border-verde transition-colors cursor-pointer">
+                        <input
+                          type="file"
+                          id="image"
+                          name="image"
+                          accept="image/*"
+                          onChange={handleImageChange}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        <div className="text-center">
+                          <Upload className="h-10 w-10 text-gray-400 mx-auto mb-2" />
+                          <p className="text-sm font-medium text-gray-700">
+                            Click to upload or drag and drop
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            PNG, JPG, GIF up to 5MB
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="relative rounded-lg overflow-hidden bg-gray-50 border border-gray-300">
+                        <img
+                          src={imagePreview}
+                          alt="Preview"
+                          className="w-full h-64 object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleRemoveImage}
+                          className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-2 transition-colors"
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Action Buttons */}
@@ -250,7 +352,7 @@ const ReportFoundItem = () => {
                   type="submit"
                   className="px-6 py-3 bg-rouge text-white rounded-lg hover:bg-rouge/90 transition-colors font-medium"
                 >
-                  Report Found Item
+                  Register Found Item
                 </button>
               </div>
             </form>

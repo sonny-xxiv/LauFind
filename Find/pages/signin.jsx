@@ -5,26 +5,26 @@ import { useAuth } from "../src/AuthContext";
 const SignIn = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
-  const [error, setError] = useState("");
+  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
+    setLoading(true);
+
     try {
       await login(formData.email, formData.password);
       navigate("/dashboard");
     } catch (err) {
       setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -57,15 +57,10 @@ const SignIn = () => {
                   id="email"
                   name="email"
                   type="email"
-                  autoComplete="email"
                   required
                   value={formData.email}
                   onChange={handleChange}
                   className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200"
-                  style={{
-                    focusRingColor: "#c0a062",
-                    focusBorderColor: "#c0a062",
-                  }}
                 />
               </div>
             </div>
@@ -82,15 +77,10 @@ const SignIn = () => {
                   id="password"
                   name="password"
                   type="password"
-                  autoComplete="current-password"
                   required
                   value={formData.password}
                   onChange={handleChange}
                   className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200"
-                  style={{
-                    focusRingColor: "#c0a062",
-                    focusBorderColor: "#c0a062",
-                  }}
                 />
               </div>
             </div>
@@ -101,7 +91,7 @@ const SignIn = () => {
                   id="remember-me"
                   name="remember-me"
                   type="checkbox"
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  className="h-4 w-4 border-gray-300 rounded"
                 />
                 <label
                   htmlFor="remember-me"
@@ -110,43 +100,38 @@ const SignIn = () => {
                   Remember me
                 </label>
               </div>
-
               <div className="text-sm">
-                <a
-                  href="#"
-                  className="font-medium transition-colors duration-200 hover:text-opacity-80"
-                  style={{ color: "red" }}
-                >
+                <a href="#" className="font-medium" style={{ color: "red" }}>
                   Forgot your password?
                 </a>
               </div>
             </div>
 
-            <Link to="/dashboard">
-              <button
-                type="submit"
-                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white transition-all duration-300 ease-in-out"
-                style={{ backgroundColor: "#c0a062" }}
-                onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = "#a88a52";
-                  e.target.style.transform = "translateY(-2px)";
-                  e.target.style.boxShadow =
-                    "0 8px 12px rgba(192, 160, 98, 0.3)";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = "#c0a062";
-                  e.target.style.transform = "translateY(0)";
-                  e.target.style.boxShadow = "none";
-                }}
-              >
-                Sign in
-              </button>
-            </Link>
+            {/* ✅ No Link wrapper — button handles navigation after auth */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white transition-all duration-300 ease-in-out"
+              style={{ backgroundColor: "#c0a062" }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = "#a88a52";
+                e.target.style.transform = "translateY(-2px)";
+                e.target.style.boxShadow = "0 8px 12px rgba(192, 160, 98, 0.3)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = "#c0a062";
+                e.target.style.transform = "translateY(0)";
+                e.target.style.boxShadow = "none";
+              }}
+            >
+              {loading ? "Signing in..." : "Sign in"}
+            </button>
+
             <p className="mt-2 text-center text-sm text-gray-600">
               Don't have an account?{" "}
               <Link
                 to="/signup"
-                className="font-medium transition-colors duration-200 hover:text-opacity-80"
+                className="font-medium"
                 style={{ color: "red" }}
               >
                 Create one
