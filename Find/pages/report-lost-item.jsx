@@ -93,6 +93,7 @@ const ReportLostItem = () => {
       const { error: uploadError } = await supabase.storage
         .from("item-images") // storage bucket name
         .upload(fileName, formData.image);
+      console.log(formData.image);
 
       if (uploadError) throw new Error(uploadError.message);
 

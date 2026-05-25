@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../src/AuthContext";
-import { useItems } from "../src/ItemsContext";
 import Navbar from "../src/Navbar";
 import Dashbar from "../src/dashbar";
+import supabase from "../src/config/supabaseClient";
 import {
   ArrowLeft,
   Package,
@@ -17,9 +17,9 @@ import {
 
 const ReportFoundItem = () => {
   const { currentUser } = useAuth();
-  const { addFoundItem } = useItems();
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     itemName: "",
     category: "",
@@ -43,59 +43,42 @@ const ReportFoundItem = () => {
     "others",
   ];
 
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-  };
-
-  const closeSidebar = () => {
-    setIsSidebarOpen(false);
-  };
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const closeSidebar = () => setIsSidebarOpen(false);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith("image/")) {
-        alert("Please select a valid image file");
-        return;
-      }
+    if (!file) return;
 
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert("Image size must be less than 5MB");
-        return;
-      }
-
-      // Convert to base64
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData((prev) => ({
-          ...prev,
-          image: reader.result,
-        }));
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+    if (!file.type.startsWith("image/")) {
+      alert("Please select a valid image file");
+      return;
     }
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image size must be less than 5MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData((prev) => ({ ...prev, image: file })); // ✅ store actual file for upload
+      setImagePreview(reader.result); // preview as base64
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleRemoveImage = () => {
-    setFormData((prev) => ({
-      ...prev,
-      image: null,
-    }));
+    setFormData((prev) => ({ ...prev, image: null }));
     setImagePreview(null);
   };
 
-  const handleSubmit = (e) => {
+  // ✅ Now saves to Supabase instead of localStorage
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!formData.image) {
@@ -103,24 +86,50 @@ const ReportFoundItem = () => {
       return;
     }
 
-    // Create item data with user info
-    const itemData = {
-      ...formData,
-      reportedBy: currentUser?.username || currentUser?.email || "Anonymous",
-      reporterEmail: currentUser?.email,
-    };
+    setLoading(true);
 
-    // Add item to context (saved to localStorage)
-    addFoundItem(itemData);
+    try {
+      // Step 1: Upload image to Supabase Storage
+      const fileExt = formData.image.name.split(".").pop();
+      const fileName = `${currentUser.id}-${Date.now()}.${fileExt}`;
 
-    console.log("Found item report submitted:", itemData);
-    alert("Thank you for reporting the found item!");
-    navigate("/found-items");
+      const { error: uploadError } = await supabase.storage
+        .from("item-images")
+        .upload(fileName, formData.image);
+
+      if (uploadError) throw new Error(uploadError.message);
+
+      // Step 2: Get public URL of uploaded image
+      const { data: urlData } = supabase.storage
+        .from("item-images")
+        .getPublicUrl(fileName);
+
+      // Step 3: Save item data to found_items table
+      const { error: insertError } = await supabase.from("found_items").insert({
+        user_id: currentUser.id,
+        item_name: formData.itemName,
+        category: formData.category,
+        description: formData.description,
+        date_found: formData.dateFound,
+        location: formData.locationFound,
+        storage_location: formData.storageLocation,
+        image_url: urlData.publicUrl,
+        status: "available",
+      });
+
+      if (insertError) throw new Error(insertError.message);
+
+      alert("Thank you for reporting the found item!");
+      navigate("/found-items");
+    } catch (err) {
+      console.error("Error submitting report:", err.message);
+      alert("Something went wrong: " + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCancel = () => {
-    navigate("/dashboard");
-  };
+  const handleCancel = () => navigate("/dashboard");
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -129,7 +138,6 @@ const ReportFoundItem = () => {
         <Dashbar isOpen={isSidebarOpen} onClose={closeSidebar} />
         <main className="flex-1 p-6 md:ml-64 mt-3">
           <div className="max-w-4xl">
-            {/* Header */}
             <div className="mb-8">
               <button
                 onClick={() => navigate("/dashboard")}
@@ -143,16 +151,13 @@ const ReportFoundItem = () => {
               </h1>
               <p className="mt-2 text-sm text-gray-600 max-w-2xl">
                 Help reunite lost items with their owners by reporting what
-                you've found. Your information will help us match found items
-                with lost item reports.
+                you've found.
               </p>
             </div>
 
-            {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="rounded-4xl bg-white p-8 shadow-lg border border-gray-200">
                 <div className="grid gap-6 md:grid-cols-2">
-                  {/* Item Name */}
                   <div className="md:col-span-2">
                     <label
                       htmlFor="itemName"
@@ -169,13 +174,12 @@ const ReportFoundItem = () => {
                         required
                         value={formData.itemName}
                         onChange={handleInputChange}
-                        placeholder="e.g., blue black pack, iPhone 14, Student ID Card etc"
+                        placeholder="e.g., blue black pack, iPhone 14, Student ID Card"
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rouge focus:border-rouge transition-colors"
                       />
                     </div>
                   </div>
 
-                  {/* Category */}
                   <div>
                     <label
                       htmlFor="category"
@@ -202,7 +206,6 @@ const ReportFoundItem = () => {
                     </select>
                   </div>
 
-                  {/* Date Found */}
                   <div>
                     <label
                       htmlFor="dateFound"
@@ -223,8 +226,6 @@ const ReportFoundItem = () => {
                       />
                     </div>
                   </div>
-
-                  {/* Location Found */}
                   <div>
                     <label
                       htmlFor="locationFound"
@@ -247,7 +248,6 @@ const ReportFoundItem = () => {
                     </div>
                   </div>
 
-                  {/* Current Storage Location */}
                   <div>
                     <label
                       htmlFor="storageLocation"
@@ -270,7 +270,6 @@ const ReportFoundItem = () => {
                     </div>
                   </div>
 
-                  {/* Description */}
                   <div className="md:col-span-2">
                     <label
                       htmlFor="description"
@@ -286,21 +285,20 @@ const ReportFoundItem = () => {
                         rows={4}
                         value={formData.description}
                         onChange={handleInputChange}
-                        placeholder="Provide any additional details that might help identify the owner (color, brand, distinguishing features, condition, etc.)"
+                        placeholder="Provide any additional details that might help identify the owner"
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rouge focus:border-rouge transition-colors resize-vertical"
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* Image Upload */}
-                <div className="md:col-span-2">
+                <div className="md:col-span-2 mt-6">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Upload Image of Item *
                   </label>
                   <div className="space-y-4">
                     {!imagePreview ? (
-                      <div className="relative border-2 border-dashed border-gray-300 rounded-lg p-8 hover:border-verde transition-colors cursor-pointer">
+                      <div className="relative border-2 border-dashed border-gray-300 rounded-lg p-8 hover:border-rouge transition-colors cursor-pointer">
                         <input
                           type="file"
                           id="image"
@@ -339,7 +337,6 @@ const ReportFoundItem = () => {
                 </div>
               </div>
 
-              {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 justify-end">
                 <button
                   type="button"
@@ -350,9 +347,10 @@ const ReportFoundItem = () => {
                 </button>
                 <button
                   type="submit"
+                  disabled={loading}
                   className="px-6 py-3 bg-rouge text-white rounded-lg hover:bg-rouge/90 transition-colors font-medium"
                 >
-                  Register Found Item
+                  {loading ? "Submitting..." : "Register Found Item"}
                 </button>
               </div>
             </form>

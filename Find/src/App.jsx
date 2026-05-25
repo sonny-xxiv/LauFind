@@ -9,6 +9,7 @@ import ReportFoundItem from "../pages/report-found-item";
 import LostItems from "../pages/lost-items";
 import FoundItems from "../pages/found-items";
 import LostItemDetail from "../pages/lost-item-detail";
+import FoundItemDetail from "../pages/found-item-detail";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./AuthContext";
 import { ItemsProvider } from "./ItemsContext";
@@ -59,6 +60,16 @@ const App = () => {
                     </ProtectedRoute>
                   }
                 />
+
+                <Route
+                  path="/found-items"
+                  element={
+                    <ProtectedRoute>
+                      <FoundItems />
+                    </ProtectedRoute>
+                  }
+                />
+
                 <Route
                   path="/lost-items"
                   element={
@@ -69,10 +80,10 @@ const App = () => {
                 />
 
                 <Route
-                  path="/found-items"
+                  path="/found-item-detail/:itemId"
                   element={
                     <ProtectedRoute>
-                      <FoundItems />
+                      <FoundItemDetail />
                     </ProtectedRoute>
                   }
                 />

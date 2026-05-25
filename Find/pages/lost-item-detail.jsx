@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../src/AuthContext";
-import { useItems } from "../src/ItemsContext";
 import Navbar from "../src/Navbar";
 import Dashbar from "../src/dashbar";
+import supabase from "../src/config/supabaseClient";
 import {
   ArrowLeft,
   MapPin,
@@ -16,55 +16,63 @@ import {
 
 const LostItemDetail = () => {
   const { currentUser } = useAuth();
-  const { getLostItemById } = useItems();
   const navigate = useNavigate();
   const { itemId } = useParams();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [foundConfirmed, setFoundConfirmed] = useState(false);
+  const [item, setItem] = useState(null);
+  const [reporter, setReporter] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const item = getLostItemById(itemId);
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const closeSidebar = () => setIsSidebarOpen(false);
 
-  if (!item) {
-    return (
-      <div className="flex flex-col min-h-screen bg-gray-50">
-        <Navbar
-          onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          isSidebarOpen={isSidebarOpen}
-        />
-        <div className="flex flex-1">
-          <Dashbar
-            isOpen={isSidebarOpen}
-            onClose={() => setIsSidebarOpen(false)}
-          />
-          <main className="flex-1 p-6 md:ml-64 mt-3">
-            <div className="text-center">
-              <p className="text-gray-600 text-lg">Item not found</p>
-              <button
-                onClick={() => navigate("/lost-items")}
-                className="mt-4 inline-block text-verde hover:underline"
-              >
-                Back to Lost Items
-              </button>
-            </div>
-          </main>
-        </div>
-      </div>
-    );
-  }
+  // ✅ Fetch item and reporter profile from Supabase
+  useEffect(() => {
+    async function fetchItem() {
+      const { data, error } = await supabase
+        .from("lost_items")
+        .select("*")
+        .eq("id", itemId)
+        .single();
 
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-  };
+      if (error) {
+        console.error("Error fetching item:", error.message);
+        setLoading(false);
+        return;
+      }
 
-  const closeSidebar = () => {
-    setIsSidebarOpen(false);
-  };
+      setItem(data);
 
-  const handleFoundThisItem = () => {
+      // Fetch the profile of whoever reported this item
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("first_name, last_name")
+        .eq("id", data.user_id)
+        .single();
+
+      if (profileData) setReporter(profileData);
+
+      setLoading(false);
+    }
+
+    fetchItem();
+  }, [itemId]);
+
+  const handleFoundThisItem = async () => {
     setFoundConfirmed(true);
-    // You can add API call here to report that item has been found
-    console.log(`User ${currentUser?.email} found item: ${item.itemName}`);
-    // Optional: Show a confirmation message or navigate after a delay
+
+    // ✅ Update the item status to "found" in Supabase
+    const { error } = await supabase
+      .from("lost_items")
+      .update({ status: "found" })
+      .eq("id", itemId);
+
+    if (error) {
+      console.error("Error updating item status:", error.message);
+      return;
+    }
+
     setTimeout(() => {
       alert(
         "Thank you for reporting that you found this item! The item owner will be contacted.",
@@ -88,6 +96,43 @@ const LostItemDetail = () => {
     return colors[category] || "bg-gray-100 text-gray-800";
   };
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex flex-col min-h-screen bg-gray-50">
+        <Navbar onMenuClick={toggleSidebar} isSidebarOpen={isSidebarOpen} />
+        <div className="flex flex-1">
+          <Dashbar isOpen={isSidebarOpen} onClose={closeSidebar} />
+          <main className="flex-1 p-6 md:ml-64 mt-3 text-gray-500">
+            Loading item details...
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  // Item not found state
+  if (!item) {
+    return (
+      <div className="flex flex-col min-h-screen bg-gray-50">
+        <Navbar onMenuClick={toggleSidebar} isSidebarOpen={isSidebarOpen} />
+        <div className="flex flex-1">
+          <Dashbar isOpen={isSidebarOpen} onClose={closeSidebar} />
+          <main className="flex-1 p-6 md:ml-64 mt-3">
+            <div className="text-center">
+              <p className="text-gray-600 text-lg">Item not found</p>
+              <button
+                onClick={() => navigate("/lost-items")}
+                className="mt-4 inline-block text-verde hover:underline"
+              >
+                Back to Lost Items
+              </button>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       <Navbar onMenuClick={toggleSidebar} isSidebarOpen={isSidebarOpen} />
@@ -95,7 +140,6 @@ const LostItemDetail = () => {
         <Dashbar isOpen={isSidebarOpen} onClose={closeSidebar} />
         <main className="flex-1 p-6 md:ml-64 mt-3">
           <div className="max-w-4xl">
-            {/* Header with Back Button */}
             <div className="mb-8">
               <button
                 onClick={() => navigate("/lost-items")}
@@ -106,31 +150,27 @@ const LostItemDetail = () => {
               </button>
             </div>
 
-            {/* Main Content */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column - Item Image and Main Details */}
+              {/* Left Column */}
               <div className="lg:col-span-2">
-                {/* Item Image */}
+                {/* Image */}
                 <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6 border border-gray-200">
                   <img
-                    src={item.image}
-                    alt={item.itemName}
+                    src={item.image_url}
+                    alt={item.item_name}
                     className="w-full h-96 object-cover"
                   />
                 </div>
 
-                {/* Item Details Card */}
+                {/* Details Card */}
                 <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-                  {/* Header */}
                   <div className="flex items-start justify-between mb-6">
                     <div>
                       <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                        {item.itemName}
+                        {item.item_name} {/* ✅ Supabase column */}
                       </h1>
                       <span
-                        className={`inline-block px-4 py-1 rounded-full text-sm font-semibold ${getCategoryBadgeColor(
-                          item.category,
-                        )}`}
+                        className={`inline-block px-4 py-1 rounded-full text-sm font-semibold ${getCategoryBadgeColor(item.category)}`}
                       >
                         {item.category.charAt(0).toUpperCase() +
                           item.category.slice(1)}
@@ -138,9 +178,7 @@ const LostItemDetail = () => {
                     </div>
                   </div>
 
-                  {/* Detailed Information */}
                   <div className="space-y-6 border-t border-gray-200 pt-6">
-                    {/* Location Lost */}
                     <div>
                       <div className="flex items-center gap-3 mb-2">
                         <MapPin className="h-5 w-5 text-verde" />
@@ -153,7 +191,6 @@ const LostItemDetail = () => {
                       </p>
                     </div>
 
-                    {/* Date Lost */}
                     <div>
                       <div className="flex items-center gap-3 mb-2">
                         <Calendar className="h-5 w-5 text-verde" />
@@ -162,8 +199,8 @@ const LostItemDetail = () => {
                         </h3>
                       </div>
                       <p className="text-lg text-gray-900 ml-8">
-                        {new Date(item.dateLost).toLocaleDateString("en-US", {
-                          weekday: "long",
+                        {new Date(item.date_lost).toLocaleDateString("en-US", {
+                          /* ✅ Supabase column */ weekday: "long",
                           year: "numeric",
                           month: "long",
                           day: "numeric",
@@ -171,7 +208,6 @@ const LostItemDetail = () => {
                       </p>
                     </div>
 
-                    {/* Description */}
                     <div>
                       <div className="flex items-center gap-3 mb-2">
                         <FileText className="h-5 w-5 text-verde" />
@@ -184,22 +220,6 @@ const LostItemDetail = () => {
                       </p>
                     </div>
 
-                    {/* Additional Details */}
-                    {item.additionalDetails && (
-                      <div>
-                        <div className="flex items-center gap-3 mb-2">
-                          <Package className="h-5 w-5 text-verde" />
-                          <h3 className="text-sm font-semibold text-gray-700 uppercase">
-                            Additional Details
-                          </h3>
-                        </div>
-                        <p className="text-gray-900 ml-8 leading-relaxed">
-                          {item.additionalDetails}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Reported By */}
                     <div>
                       <div className="flex items-center gap-3 mb-2">
                         <User className="h-5 w-5 text-verde" />
@@ -208,7 +228,10 @@ const LostItemDetail = () => {
                         </h3>
                       </div>
                       <p className="text-lg text-gray-900 ml-8">
-                        @{item.reportedBy}
+                        {/* ✅ Real name from profiles table */}
+                        {reporter
+                          ? `${reporter.first_name} ${reporter.last_name}`
+                          : "Anonymous"}
                       </p>
                     </div>
                   </div>
@@ -247,7 +270,6 @@ const LostItemDetail = () => {
                     </div>
                   )}
 
-                  {/* Additional Info Box */}
                   <div className="mt-6 pt-6 border-t border-gray-200">
                     <h3 className="text-sm font-semibold text-gray-700 mb-3">
                       About This Report
@@ -256,8 +278,8 @@ const LostItemDetail = () => {
                       <li className="flex items-start gap-2">
                         <span className="text-verde mt-1">•</span>
                         <span>
-                          This item was reported as lost on{" "}
-                          {new Date(item.dateLost).toLocaleDateString()}
+                          Reported as lost on{" "}
+                          {new Date(item.date_lost).toLocaleDateString()}
                         </span>
                       </li>
                       <li className="flex items-start gap-2">
