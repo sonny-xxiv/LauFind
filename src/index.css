@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+:root {
+  font-family: "Nunito", sans-serif;
+}
+
+@theme {
+  --color-primary: #c0a062;
+  --color-verde: #17a763;
+  --color-rouge: #e02d1b;
+}
