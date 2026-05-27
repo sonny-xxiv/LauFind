@@ -29,12 +29,13 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const signup = async ({ firstName, lastName, email, password, userType }) => {
-    // Step 1: Create the auth account
     const { data, error } = await supabase.auth.signUp({ email, password });
 
     if (error) throw new Error(error.message);
 
-    // Step 2: Save extra profile data
+    // ✅ Add a small delay — Supabase sometimes needs a moment
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
     const { error: profileError } = await supabase.from("profiles").insert({
       id: data.user.id,
       first_name: firstName,
@@ -42,7 +43,10 @@ export const AuthProvider = ({ children }) => {
       user_type: userType,
     });
 
-    if (profileError) throw new Error(profileError.message);
+    if (profileError) {
+      console.error("Profile insert failed:", profileError.message);
+      throw new Error(profileError.message);
+    }
   };
 
   const login = async (email, password) => {

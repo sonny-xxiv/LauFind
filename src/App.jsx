@@ -16,6 +16,7 @@ import { ItemsProvider } from "./ItemsContext";
 import ProtectedRoute from "./ProtectedRoute";
 import supabase from "./config/supabaseClient";
 import Claims from "../pages/claims";
+import SearchPage from "../pages/search";
 
 const App = () => {
   console.log("Supabase Client:", supabase); // Debugging line to check if supabase is initialized correctly
@@ -85,6 +86,15 @@ const App = () => {
                   element={
                     <ProtectedRoute>
                       <Claims />
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="/search"
+                  element={
+                    <ProtectedRoute>
+                      <SearchPage />
                     </ProtectedRoute>
                   }
                 />

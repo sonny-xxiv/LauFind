@@ -41,7 +41,7 @@ const Settings = () => {
       <Navbar onMenuClick={toggleSidebar} isSidebarOpen={isSidebarOpen} />
       <div className="flex flex-1">
         <Dashbar isOpen={isSidebarOpen} onClose={closeSidebar} />
-        <main className="flex-1 p-6 md:ml-64 mt-3">
+        <main className="flex-1 p-6 md:ml-64 mt-3 pt-20 md:pt-0">
           <div className="max-w-6xl">
             <div className="mb-8">
               <p className="text-sm uppercase tracking-[0.24em] text-gray-500 font-semibold">

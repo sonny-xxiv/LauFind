@@ -152,7 +152,7 @@ const Dashboard = () => {
       <Navbar onMenuClick={toggleSidebar} isSidebarOpen={isSidebarOpen} />
       <div className="flex flex-1">
         <Dashbar isOpen={isSidebarOpen} onClose={closeSidebar} />
-        <div className="flex-1 p-6 md:ml-64 mt-3">
+        <div className="flex-1 p-6 md:ml-64 mt-3 pt-20 md:pt-0">
           <h1 className="text-2xl md:text-3xl font-bold text-left text-gray-900">
             Welcome back, {profile?.first_name || "User"}!
           </h1>

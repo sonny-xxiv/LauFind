@@ -16,6 +16,7 @@ const navItems = [
   { label: "Claims", Icon: ClipboardCheck },
 ];
 import { Link, useNavigate } from "react-router-dom";
+
 const Dashbar = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   return (
