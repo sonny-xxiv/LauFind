@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import LauLogo from "/lau.png";
 
 const Home = () => {
   return (
@@ -7,12 +8,19 @@ const Home = () => {
         {/* Navbar */}
         <nav className="bg-white shadow-md sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex justify-between items-center">
-            <h1
-              className="text-2xl sm:text-3xl font-bold transition-transform duration-300 hover:scale-105 cursor-pointer"
-              style={{ color: "#c0a062" }}
-            >
-              LauFind
-            </h1>
+            <div className="flex items-center gap-2">
+              <img
+                src={LauLogo}
+                alt="LauLogo"
+                className="h-8 w-8 object-contain"
+              />
+              <h1
+                className="text-2xl sm:text-3xl font-bold transition-transform duration-300 hover:scale-105 cursor-pointer"
+                style={{ color: "#c0a062" }}
+              >
+                LauFind
+              </h1>
+            </div>
             <div className="flex gap-2 sm:gap-4">
               <Link
                 to="/signin"
