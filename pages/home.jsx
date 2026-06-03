@@ -16,7 +16,7 @@ const Home = () => {
               />
               <h1
                 className="text-2xl sm:text-3xl font-bold transition-transform duration-300 hover:scale-105 cursor-pointer"
-                style={{ color: "#c0a062" }}
+                style={{ color: "#c0a063" }}
               >
                 LauFind
               </h1>

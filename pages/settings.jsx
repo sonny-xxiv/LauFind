@@ -82,9 +82,7 @@ const Settings = () => {
                         {currentUser?.email || "-"}
                       </p>
                     </div>
-                  </div>
 
-                  <div className="space-y-4">
                     <div className="rounded-3xl bg-slate-50 p-5">
                       <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
                         <ShieldCheck className="h-5 w-5 text-amber-500" />
@@ -95,11 +93,44 @@ const Settings = () => {
                         {profile?.user_type || "-"}
                       </p>
                     </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Show student fields only if user is a student */}
+                    {profile?.user_type === "student" && (
+                      <>
+                        <div className="rounded-3xl bg-slate-50 p-5">
+                          <div className="text-sm font-semibold text-gray-700">
+                            Faculty
+                          </div>
+                          <p className="mt-3 text-lg font-semibold text-gray-900">
+                            {profile?.faculty || "-"}
+                          </p>
+                        </div>
+
+                        <div className="rounded-3xl bg-slate-50 p-5">
+                          <div className="text-sm font-semibold text-gray-700">
+                            Matric Number
+                          </div>
+                          <p className="mt-3 text-lg font-semibold text-gray-900">
+                            {profile?.matric_number || "-"}
+                          </p>
+                        </div>
+                      </>
+                    )}
+                    <div className="rounded-3xl bg-slate-50 p-5">
+                      <div className="text-sm font-semibold text-gray-700">
+                        Department
+                      </div>
+                      <p className="mt-3 text-lg font-semibold text-gray-900">
+                        {profile?.department || "-"}
+                      </p>
+                    </div>
                     <div className="rounded-3xl bg-slate-50 p-5">
                       <div className="text-sm font-semibold text-gray-700">
                         Account Status
                       </div>
-                      <p className="mt-3 text-lg font-semibold text-green-600">
+                      <p className="mt-3 text-lg font-semibold text-green-700">
                         Active
                       </p>
                     </div>

@@ -12,13 +12,11 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get session on app start
     supabase.auth.getSession().then(({ data: { session } }) => {
       setCurrentUser(session?.user ?? null);
       setLoading(false);
     });
 
-    // Listen for login/logout changes across the app
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -28,12 +26,21 @@ export const AuthProvider = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signup = async ({ firstName, lastName, email, password, userType }) => {
+  // ✅ Updated signup with faculty, department, matricNumber
+  const signup = async ({
+    firstName,
+    lastName,
+    email,
+    password,
+    userType,
+    faculty,
+    department,
+    matricNumber,
+  }) => {
     const { data, error } = await supabase.auth.signUp({ email, password });
 
     if (error) throw new Error(error.message);
 
-    // ✅ Add a small delay — Supabase sometimes needs a moment
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     const { error: profileError } = await supabase.from("profiles").insert({
@@ -41,6 +48,10 @@ export const AuthProvider = ({ children }) => {
       first_name: firstName,
       last_name: lastName,
       user_type: userType,
+      // ✅ Only save student fields if user is a student
+      faculty: userType === "student" ? faculty : null,
+      department: userType === "student" ? department : null,
+      matric_number: userType === "student" ? matricNumber : null,
     });
 
     if (profileError) {

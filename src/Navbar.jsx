@@ -90,7 +90,7 @@ const Navbar = ({ onMenuClick, isSidebarOpen }) => {
                 className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 transition duration-200"
               >
                 <Settings size={18} className="text-gray-600" />
-                <span className="text-sm font-medium">Settings</span>
+                <span className="text-sm font-medium">Profile</span>
               </button>
 
               <button

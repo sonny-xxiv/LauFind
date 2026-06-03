@@ -24,6 +24,8 @@ const FoundItemDetail = () => {
   const [item, setItem] = useState(null);
   const [reporter, setReporter] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [claimed, setClaimed] = useState(false);
+  const [matricNumber, setMatricNumber] = useState("");
 
   // Modal states
   const [showModal, setShowModal] = useState(false);
@@ -77,47 +79,79 @@ const FoundItemDetail = () => {
 
     setSubmitting(true);
 
-    // 1. Update found_items status
-    const { error: updateError } = await supabase
-      .from("found_items")
-      .update({
-        status: "claimed",
-        claimer_note: claimDescription,
+    try {
+      // Step 1: Update found item status
+      const { error: updateError } = await supabase
+        .from("found_items")
+        .update({
+          status: "claimed",
+          claimer_note: claimDescription,
+          claimer_id: currentUser.id,
+        })
+        .eq("id", itemId);
+
+      if (updateError) throw new Error(updateError.message);
+
+      // Step 2: Insert claim
+      const { error: claimError } = await supabase.from("claims").insert({
+        item_id: itemId,
+        item_type: "found",
         claimer_id: currentUser.id,
-      })
-      .eq("id", itemId);
+        claimer_note: claimDescription,
+        status: "pending",
+      });
 
-    if (updateError) {
-      console.error("Error updating item:", updateError.message);
+      if (claimError) throw new Error(claimError.message);
+
+      // Step 3: ✅ Check if claimer is the same as the finder (reporter)
+      if (currentUser.id === item.user_id) {
+        // The person who found it is now claiming it back — auto resolve
+        await handleAutoResolve();
+        return;
+      }
+
+      setShowModal(false);
+      setClaimed(true);
       setSubmitting(false);
-      return;
-    }
 
-    // 2. Insert into claims table
-    const { error: claimError } = await supabase.from("claims").insert({
-      item_id: itemId,
-      item_type: "found",
-      claimer_id: currentUser.id,
-      claimer_note: claimDescription,
-      status: "pending",
-    });
-
-    if (claimError) {
-      console.error("Error saving claim:", claimError.message);
+      setTimeout(() => {
+        alert("Your claim has been submitted! The finder will be contacted.");
+        navigate("/found-items");
+      }, 1500);
+    } catch (err) {
+      console.error("Error submitting claim:", err.message);
+      alert("Something went wrong: " + err.message);
       setSubmitting(false);
-      return;
     }
-
-    setShowModal(false);
-    setFoundConfirmed(true);
-    setSubmitting(false);
-
-    setTimeout(() => {
-      alert("Thank you! The reporter will be contacted.");
-      navigate("/found-items");
-    }, 1500);
   };
 
+  // ✅ Auto resolve for found items
+  const handleAutoResolve = async () => {
+    try {
+      const { error: deleteError } = await supabase
+        .from("found_items")
+        .delete()
+        .eq("id", itemId);
+
+      if (deleteError) throw new Error(deleteError.message);
+
+      await supabase
+        .from("claims")
+        .update({ status: "resolved" })
+        .eq("item_id", itemId);
+
+      setShowModal(false);
+      setSubmitting(false);
+
+      alert(
+        "🎉 Item successfully reunited with its owner! The item has been removed from the found items list.",
+      );
+      navigate("/found-items");
+    } catch (err) {
+      console.error("Auto resolve error:", err.message);
+      setSubmitting(false);
+    }
+  };
   const getCategoryBadgeColor = (category) => {
     const colors = {
       electronics: "bg-blue-100 text-blue-800",
@@ -178,11 +212,11 @@ const FoundItemDetail = () => {
           <div className="max-w-4xl">
             <div className="mb-8">
               <button
-                onClick={() => navigate("/lost-items")}
+                onClick={() => navigate("/found-items")}
                 className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors mb-4"
               >
                 <ArrowLeft size={20} />
-                <span className="text-sm font-medium">Back to Lost Items</span>
+                <span className="text-sm font-medium">Back to Found Items</span>
               </button>
             </div>
 
@@ -263,8 +297,8 @@ const FoundItemDetail = () => {
                         </h3>
                       </div>
                       <p className="text-lg text-gray-900 ml-8">
-                        {item.profiles
-                          ? `${item.profiles.first_name} ${item.profiles.last_name}`
+                        {reporter
+                          ? `${reporter.first_name} ${reporter.last_name}`
                           : "Anonymous"}
                       </p>
                     </div>
@@ -354,25 +388,45 @@ const FoundItemDetail = () => {
                 <X size={22} />
               </button>
             </div>
+
             <p className="text-sm text-gray-500 mb-5">
-              Please describe the item, any distinguishing features, or other
-              proof to help verify your claim.
+              Please provide your matric number and describe the item to verify
+              that it belongs to you.
             </p>
 
-            {/* Textarea */}
-            <textarea
-              rows={4}
-              value={claimDescription}
-              onChange={(e) => setClaimDescription(e.target.value)}
-              placeholder="e.g. I am the owner of this item because..."
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-verde focus:border-verde transition-colors resize-none text-sm"
-            />
+            {/* Matric Number Field */}
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Matric Number
+              </label>
+              <input
+                type="text"
+                value={matricNumber}
+                onChange={(e) => setMatricNumber(e.target.value)}
+                placeholder="e.g. 210401001"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-verde focus:border-verde transition-colors text-sm"
+              />
+            </div>
+
+            {/* Description Textarea */}
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Description
+              </label>
+              <textarea
+                rows={4}
+                value={claimDescription}
+                onChange={(e) => setClaimDescription(e.target.value)}
+                placeholder="e.g. I am the owner of this item because..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-verde focus:border-verde transition-colors resize-none text-sm"
+              />
+            </div>
 
             {/* Modal Buttons */}
             <button
               onClick={handleSubmitClaim}
               disabled={submitting}
-              className="w-full mt-4 bg-verde hover:bg-verde/90 text-white py-3 rounded-lg font-semibold transition-colors"
+              className="w-full mt-2 bg-verde hover:bg-verde/90 text-white py-3 rounded-lg font-semibold transition-colors"
             >
               {submitting ? "Submitting..." : "Submit Claim"}
             </button>

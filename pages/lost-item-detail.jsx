@@ -24,6 +24,8 @@ const LostItemDetail = () => {
   const [item, setItem] = useState(null);
   const [reporter, setReporter] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [claimed, setClaimed] = useState(false);
+  const [matricNumber, setMatricNumber] = useState("");
 
   // Modal states
   const [showModal, setShowModal] = useState(false);
@@ -49,11 +51,18 @@ const LostItemDetail = () => {
 
       setItem(data);
 
-      const { data: profileData } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("first_name, last_name")
         .eq("id", data.user_id)
         .single();
+
+      console.log(
+        "Reporter profile data:",
+        profileData,
+        "Error:",
+        profileError,
+      );
 
       if (profileData) setReporter(profileData);
 
@@ -69,6 +78,11 @@ const LostItemDetail = () => {
   };
 
   const handleSubmitClaim = async () => {
+    if (!matricNumber.trim()) {
+      alert("Please provide your matric number.");
+      return;
+    }
+
     if (!claimDescription.trim()) {
       alert("Please provide a description to verify your claim.");
       return;
@@ -76,47 +90,92 @@ const LostItemDetail = () => {
 
     setSubmitting(true);
 
-    // Step 1: Update found_items status
-    const { error: updateError } = await supabase
-      .from("found_items")
-      .update({
-        status: "claimed",
-        claimer_note: claimDescription,
+    try {
+      // Step 1: Save the finder's claim on the item
+      const { error: updateError } = await supabase
+        .from("lost_items")
+        .update({
+          status: "found",
+          finder_note: claimDescription,
+          finder_id: currentUser.id,
+          finder_matric: matricNumber,
+        })
+        .eq("id", itemId);
+
+      if (updateError) throw new Error(updateError.message);
+
+      // Step 2: Insert into claims table
+      const { error: claimError } = await supabase.from("claims").insert({
+        item_id: itemId,
+        item_type: "lost",
         claimer_id: currentUser.id,
-      })
-      .eq("id", itemId);
+        claimer_note: claimDescription,
+        claimer_matric: matricNumber,
+        status: "pending",
+      });
 
-    if (updateError) {
-      console.error("Error updating item:", updateError.message);
+      if (claimError) throw new Error(claimError.message);
+
+      // Step 3: Check if the finder is the same person who reported the item
+      // i.e. the owner found their own item
+      if (currentUser.id === item.user_id) {
+        // Same person — auto resolve and delete
+        await handleAutoResolve();
+        return;
+      }
+
+      // Step 4: Check if finder_id matches the original reporter
+      // i.e. someone found the item and the reporter is now claiming it back
+      if (item.finder_id && item.finder_id === item.user_id) {
+        await handleAutoResolve();
+        return;
+      }
+
+      // Normal flow — no match yet
+      setShowModal(false);
+      setFoundConfirmed(true);
       setSubmitting(false);
-      return;
-    }
 
-    // Step 2: Insert into claims table
-    const { error: claimError } = await supabase.from("claims").insert({
-      item_id: itemId,
-      item_type: "found",
-      claimer_id: currentUser.id,
-      claimer_note: claimDescription,
-      status: "pending",
-    });
-
-    if (claimError) {
-      console.error("Error saving claim:", claimError.message);
+      setTimeout(() => {
+        alert("Thank you! The item owner will be contacted.");
+        navigate("/lost-items");
+      }, 1500);
+    } catch (err) {
+      console.error("Error submitting claim:", err.message);
+      alert("Something went wrong: " + err.message);
       setSubmitting(false);
-      return;
     }
-
-    setShowModal(false);
-    setClaimed(true);
-    setSubmitting(false);
-
-    setTimeout(() => {
-      alert("Your claim has been submitted! The finder will be contacted.");
-      navigate("/found-items");
-    }, 1500);
   };
 
+  // ✅ Auto resolve — called when owner and finder match
+  const handleAutoResolve = async () => {
+    try {
+      // Delete the item from lost_items
+      const { error: deleteError } = await supabase
+        .from("lost_items")
+        .delete()
+        .eq("id", itemId);
+
+      if (deleteError) throw new Error(deleteError.message);
+
+      // Update all related claims to resolved
+      await supabase
+        .from("claims")
+        .update({ status: "resolved" })
+        .eq("item_id", itemId);
+
+      setShowModal(false);
+      setSubmitting(false);
+
+      alert(
+        "🎉 Item successfully reunited with its owner! The item has been removed from the lost items list.",
+      );
+      navigate("/lost-items");
+    } catch (err) {
+      console.error("Auto resolve error:", err.message);
+      setSubmitting(false);
+    }
+  };
   const getCategoryBadgeColor = (category) => {
     const colors = {
       electronics: "bg-blue-100 text-blue-800",
@@ -266,8 +325,8 @@ const LostItemDetail = () => {
                           </h3>
                         </div>
                         <p className="text-lg text-gray-900 ml-8">
-                          {item.profiles
-                            ? `${item.profiles.first_name} ${item.profiles.last_name}`
+                          {reporter
+                            ? `${reporter.first_name} ${reporter.last_name} `
                             : "Anonymous"}
                         </p>
                       </div>
@@ -338,14 +397,15 @@ const LostItemDetail = () => {
           </main>
         </div>
       </div>
-      {/* ✅ Verification Modal */}
+
+      {/* {/* ✅ Verification Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
             {/* Modal Header */}
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xl font-bold text-gray-900">
-                Verify Your Find
+                Verify Your Claim
               </h2>
               <button
                 onClick={() => setShowModal(false)}
@@ -354,25 +414,45 @@ const LostItemDetail = () => {
                 <X size={22} />
               </button>
             </div>
+
             <p className="text-sm text-gray-500 mb-5">
-              Please describe where you found it, any distinguishing features,
-              or other proof to help verify your claim.
+              Please provide your matric number and describe the item to verify
+              that it belongs to you.
             </p>
 
-            {/* Textarea */}
-            <textarea
-              rows={4}
-              value={claimDescription}
-              onChange={(e) => setClaimDescription(e.target.value)}
-              placeholder="e.g. I found a black wallet near the library entrance, it has a red card inside..."
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-verde focus:border-verde transition-colors resize-none text-sm"
-            />
+            {/* Matric Number Field */}
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Matric Number
+              </label>
+              <input
+                type="text"
+                value={matricNumber}
+                onChange={(e) => setMatricNumber(e.target.value)}
+                placeholder="e.g. 210401001"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-verde focus:border-verde transition-colors text-sm"
+              />
+            </div>
+
+            {/* Description Textarea */}
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Description
+              </label>
+              <textarea
+                rows={4}
+                value={claimDescription}
+                onChange={(e) => setClaimDescription(e.target.value)}
+                placeholder="e.g. I am the owner of this item because..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-verde focus:border-verde transition-colors resize-none text-sm"
+              />
+            </div>
 
             {/* Modal Buttons */}
             <button
               onClick={handleSubmitClaim}
               disabled={submitting}
-              className="w-full mt-4 bg-verde hover:bg-verde/90 text-white py-3 rounded-lg font-semibold transition-colors"
+              className="w-full mt-2 bg-verde hover:bg-verde/90 text-white py-3 rounded-lg font-semibold transition-colors"
             >
               {submitting ? "Submitting..." : "Submit Claim"}
             </button>
