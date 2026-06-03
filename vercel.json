@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {
   "rewrites": [
     {
@@ -6,3 +7,6 @@
     }
   ]
 }
+=======
+{"rewrites": [{"source": "/(.*)", "destination": "/index.html"}]}
+>>>>>>> 96b75eaae065a1d947b2dfee2830e12b44c6b950
