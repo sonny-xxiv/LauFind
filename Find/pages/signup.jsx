@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../src/AuthContext";
 
@@ -12,7 +13,12 @@ const SignUp = () => {
     password: "",
     confirmPassword: "",
     userType: "",
+    faculty: "",
+    department: "",
+    matricNumber: "",
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -38,6 +44,9 @@ const SignUp = () => {
         email: formData.email,
         password: formData.password,
         userType: formData.userType,
+        faculty: formData.faculty,
+        department: formData.department,
+        matricNumber: formData.matricNumber,
       });
       navigate("/dashboard");
     } catch (err) {
@@ -51,7 +60,7 @@ const SignUp = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h2
-          className="mt-6 text-center text-3xl font-extrabold text-gray-900"
+          className="mt-6 text-center text-3xl font-extrabold"
           style={{ color: "#c0a062" }}
         >
           Create your account
@@ -63,7 +72,7 @@ const SignUp = () => {
           Already have an account?{" "}
           <Link
             to="/signin"
-            className="font-medium transition-colors duration-200 hover:text-opacity-80"
+            className="font-medium"
             style={{ color: "#c0a062" }}
           >
             Sign in here
@@ -74,6 +83,7 @@ const SignUp = () => {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-lg sm:rounded-lg sm:px-10">
           <form className="space-y-6" onSubmit={handleSubmit}>
+            {/* First & Last Name */}
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               <div>
                 <label
@@ -87,19 +97,13 @@ const SignUp = () => {
                     id="firstName"
                     name="firstName"
                     type="text"
-                    autoComplete="given-name"
                     required
                     value={formData.firstName}
                     onChange={handleChange}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200"
-                    style={{
-                      focusRingColor: "#c0a062",
-                      focusBorderColor: "#c0a062",
-                    }}
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200"
                   />
                 </div>
               </div>
-
               <div>
                 <label
                   htmlFor="lastName"
@@ -112,20 +116,15 @@ const SignUp = () => {
                     id="lastName"
                     name="lastName"
                     type="text"
-                    autoComplete="family-name"
                     required
                     value={formData.lastName}
                     onChange={handleChange}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200"
-                    style={{
-                      focusRingColor: "#c0a062",
-                      focusBorderColor: "#c0a062",
-                    }}
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200"
                   />
                 </div>
               </div>
             </div>
-
+            {/* Email */}
             <div>
               <label
                 htmlFor="email"
@@ -138,19 +137,15 @@ const SignUp = () => {
                   id="email"
                   name="email"
                   type="email"
-                  autoComplete="email"
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200"
-                  style={{
-                    focusRingColor: "#c0a062",
-                    focusBorderColor: "#c0a062",
-                  }}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200"
                 />
               </div>
             </div>
 
+            {/* Password */}
             <div>
               <label
                 htmlFor="password"
@@ -158,24 +153,28 @@ const SignUp = () => {
               >
                 Password
               </label>
-              <div className="mt-1">
+              <div className="mt-1 relative">
                 <input
                   id="password"
                   name="password"
-                  type="password"
-                  autoComplete="new-password"
+                  type={showPassword ? "text" : "password"}
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200"
-                  style={{
-                    focusRingColor: "#c0a062",
-                    focusBorderColor: "#c0a062",
-                  }}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 pr-10"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
               </div>
             </div>
 
+            {/* Confirm Password */}
             <div>
               <label
                 htmlFor="confirmPassword"
@@ -183,24 +182,32 @@ const SignUp = () => {
               >
                 Confirm Password
               </label>
-              <div className="mt-1">
+              <div className="mt-1 relative">
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
-                  type="password"
-                  autoComplete="new-password"
+                  type={showConfirmPassword ? "text" : "password"}
                   required
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200"
-                  style={{
-                    focusRingColor: "#c0a062",
-                    focusBorderColor: "#c0a062",
-                  }}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 pr-10"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff size={20} />
+                  ) : (
+                    <Eye size={20} />
+                  )}
+                </button>
               </div>
             </div>
 
+            {/* User Type */}
             <div>
               <label
                 htmlFor="userType"
@@ -215,11 +222,7 @@ const SignUp = () => {
                   required
                   value={formData.userType}
                   onChange={handleChange}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 bg-white"
-                  style={{
-                    focusRingColor: "#c0a062",
-                    focusBorderColor: "#c0a062",
-                  }}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 bg-white"
                 >
                   <option value="" disabled>
                     Select your role
@@ -229,10 +232,79 @@ const SignUp = () => {
                 </select>
               </div>
             </div>
+            {/* ✅ Student-only fields — only show when userType is student */}
+            {formData.userType === "student" && (
+              <>
+                <div>
+                  <label
+                    htmlFor="faculty"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Faculty
+                  </label>
+                  <div className="mt-1">
+                    <input
+                      id="faculty"
+                      name="faculty"
+                      type="text"
+                      required
+                      value={formData.faculty}
+                      onChange={handleChange}
+                      placeholder="e.g. Faculty of Computing & Informatics"
+                      className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200"
+                    />
+                  </div>
+                </div>
 
+                <div>
+                  <label
+                    htmlFor="department"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Department
+                  </label>
+                  <div className="mt-1">
+                    <input
+                      id="department"
+                      name="department"
+                      type="text"
+                      required
+                      value={formData.department}
+                      onChange={handleChange}
+                      placeholder="e.g. Computer Science"
+                      className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="matricNumber"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Matric Number
+                  </label>
+                  <div className="mt-1">
+                    <input
+                      id="matricNumber"
+                      name="matricNumber"
+                      type="text"
+                      required
+                      value={formData.matricNumber}
+                      onChange={handleChange}
+                      placeholder="e.g. 20240001"
+                      className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Submit Button */}
             <div>
               <button
                 type="submit"
+                disabled={loading}
                 className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white transition-all duration-300 ease-in-out"
                 style={{ backgroundColor: "#c0a062" }}
                 onMouseEnter={(e) => {
@@ -247,7 +319,7 @@ const SignUp = () => {
                   e.target.style.boxShadow = "none";
                 }}
               >
-                Create Account
+                {loading ? "Creating account..." : "Create Account"}
               </button>
             </div>
           </form>

@@ -41,7 +41,7 @@ const Settings = () => {
       <Navbar onMenuClick={toggleSidebar} isSidebarOpen={isSidebarOpen} />
       <div className="flex flex-1">
         <Dashbar isOpen={isSidebarOpen} onClose={closeSidebar} />
-        <main className="flex-1 p-6 md:ml-64 mt-3">
+        <main className="flex-1 p-6 md:ml-64 mt-3 pt-20 md:pt-0">
           <div className="max-w-6xl">
             <div className="mb-8">
               <p className="text-sm uppercase tracking-[0.24em] text-gray-500 font-semibold">
@@ -82,9 +82,7 @@ const Settings = () => {
                         {currentUser?.email || "-"}
                       </p>
                     </div>
-                  </div>
 
-                  <div className="space-y-4">
                     <div className="rounded-3xl bg-slate-50 p-5">
                       <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
                         <ShieldCheck className="h-5 w-5 text-amber-500" />
@@ -93,6 +91,39 @@ const Settings = () => {
                       <p className="mt-3 text-lg font-semibold text-gray-900 capitalize">
                         {/* ✅ user_type from profiles table */}
                         {profile?.user_type || "-"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Show student fields only if user is a student */}
+                    {profile?.user_type === "student" && (
+                      <>
+                        <div className="rounded-3xl bg-slate-50 p-5">
+                          <div className="text-sm font-semibold text-gray-700">
+                            Faculty
+                          </div>
+                          <p className="mt-3 text-lg font-semibold text-gray-900">
+                            {profile?.faculty || "-"}
+                          </p>
+                        </div>
+
+                        <div className="rounded-3xl bg-slate-50 p-5">
+                          <div className="text-sm font-semibold text-gray-700">
+                            Matric Number
+                          </div>
+                          <p className="mt-3 text-lg font-semibold text-gray-900">
+                            {profile?.matric_number || "-"}
+                          </p>
+                        </div>
+                      </>
+                    )}
+                    <div className="rounded-3xl bg-slate-50 p-5">
+                      <div className="text-sm font-semibold text-gray-700">
+                        Department
+                      </div>
+                      <p className="mt-3 text-lg font-semibold text-gray-900">
+                        {profile?.department || "-"}
                       </p>
                     </div>
                     <div className="rounded-3xl bg-slate-50 p-5">

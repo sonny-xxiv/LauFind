@@ -45,7 +45,7 @@ const Navbar = ({ onMenuClick, isSidebarOpen }) => {
   };
 
   return (
-    <nav className="bg-white shadow-md">
+    <nav className="bg-white shadow-md fixed top-0 left-0 w-full z-40 mb-20 md:m-0 md:static md:z-10">
       <div className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-4">
           <button
@@ -55,7 +55,7 @@ const Navbar = ({ onMenuClick, isSidebarOpen }) => {
           >
             <Menu size={24} className="text-gray-600" />
           </button>
-          <div className="text-2xl md:text-4xl cursor-pointer font-bold text-gray-800">
+          <div className="text-xl md:text-4xl cursor-pointer font-bold text-gray-800">
             Laufind
           </div>
         </div>
@@ -90,7 +90,7 @@ const Navbar = ({ onMenuClick, isSidebarOpen }) => {
                 className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 transition duration-200"
               >
                 <Settings size={18} className="text-gray-600" />
-                <span className="text-sm font-medium">Settings</span>
+                <span className="text-sm font-medium">Profile</span>
               </button>
 
               <button

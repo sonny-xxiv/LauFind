@@ -22,6 +22,7 @@ const LostItems = () => {
       const { data, error } = await supabase
         .from("lost_items")
         .select("*")
+        // .select("profiles(first_name, last_name)")
         .order("created_at", { ascending: false }); // newest first
 
       if (error) {
@@ -60,7 +61,7 @@ const LostItems = () => {
       <Navbar onMenuClick={toggleSidebar} isSidebarOpen={isSidebarOpen} />
       <div className="flex flex-1">
         <Dashbar isOpen={isSidebarOpen} onClose={closeSidebar} />
-        <main className="flex-1 p-6 md:ml-64 mt-3">
+        <main className="flex-1 p-6 md:ml-64 mt-3 pt-20 md:pt-0">
           <div className="mb-8">
             <div className="flex justify-between items-center mb-4">
               <h1 className="text-4xl font-bold text-gray-900">Lost Items</h1>

@@ -12,6 +12,7 @@ import {
   User,
   FileText,
   CheckCircle,
+  X,
 } from "lucide-react";
 
 const LostItemDetail = () => {
@@ -23,11 +24,17 @@ const LostItemDetail = () => {
   const [item, setItem] = useState(null);
   const [reporter, setReporter] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [claimed, setClaimed] = useState(false);
+  const [matricNumber, setMatricNumber] = useState("");
+
+  // Modal states
+  const [showModal, setShowModal] = useState(false);
+  const [claimDescription, setClaimDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const closeSidebar = () => setIsSidebarOpen(false);
 
-  // ✅ Fetch item and reporter profile from Supabase
   useEffect(() => {
     async function fetchItem() {
       const { data, error } = await supabase
@@ -44,12 +51,18 @@ const LostItemDetail = () => {
 
       setItem(data);
 
-      // Fetch the profile of whoever reported this item
-      const { data: profileData } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("first_name, last_name")
         .eq("id", data.user_id)
         .single();
+
+      console.log(
+        "Reporter profile data:",
+        profileData,
+        "Error:",
+        profileError,
+      );
 
       if (profileData) setReporter(profileData);
 
@@ -59,28 +72,110 @@ const LostItemDetail = () => {
     fetchItem();
   }, [itemId]);
 
-  const handleFoundThisItem = async () => {
-    setFoundConfirmed(true);
+  // ✅ Opens the modal instead of immediately confirming
+  const handleFoundThisItem = () => {
+    setShowModal(true);
+  };
 
-    // ✅ Update the item status to "found" in Supabase
-    const { error } = await supabase
-      .from("lost_items")
-      .update({ status: "found" })
-      .eq("id", itemId);
-
-    if (error) {
-      console.error("Error updating item status:", error.message);
+  const handleSubmitClaim = async () => {
+    if (!matricNumber.trim()) {
+      alert("Please provide your matric number.");
       return;
     }
 
-    setTimeout(() => {
-      alert(
-        "Thank you for reporting that you found this item! The item owner will be contacted.",
-      );
-      navigate("/lost-items");
-    }, 1500);
+    if (!claimDescription.trim()) {
+      alert("Please provide a description to verify your claim.");
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      // Step 1: Save the finder's claim on the item
+      const { error: updateError } = await supabase
+        .from("lost_items")
+        .update({
+          status: "found",
+          finder_note: claimDescription,
+          finder_id: currentUser.id,
+          finder_matric: matricNumber,
+        })
+        .eq("id", itemId);
+
+      if (updateError) throw new Error(updateError.message);
+
+      // Step 2: Insert into claims table
+      const { error: claimError } = await supabase.from("claims").insert({
+        item_id: itemId,
+        item_type: "lost",
+        claimer_id: currentUser.id,
+        claimer_note: claimDescription,
+        claimer_matric: matricNumber,
+        status: "pending",
+      });
+
+      if (claimError) throw new Error(claimError.message);
+
+      // Step 3: Check if the finder is the same person who reported the item
+      // i.e. the owner found their own item
+      if (currentUser.id === item.user_id) {
+        // Same person — auto resolve and delete
+        await handleAutoResolve();
+        return;
+      }
+
+      // Step 4: Check if finder_id matches the original reporter
+      // i.e. someone found the item and the reporter is now claiming it back
+      if (item.finder_id && item.finder_id === item.user_id) {
+        await handleAutoResolve();
+        return;
+      }
+
+      // Normal flow — no match yet
+      setShowModal(false);
+      setFoundConfirmed(true);
+      setSubmitting(false);
+
+      setTimeout(() => {
+        alert("Thank you! The item owner will be contacted.");
+        navigate("/lost-items");
+      }, 1500);
+    } catch (err) {
+      console.error("Error submitting claim:", err.message);
+      alert("Something went wrong: " + err.message);
+      setSubmitting(false);
+    }
   };
 
+  // ✅ Auto resolve — called when owner and finder match
+  const handleAutoResolve = async () => {
+    try {
+      // Delete the item from lost_items
+      const { error: deleteError } = await supabase
+        .from("lost_items")
+        .delete()
+        .eq("id", itemId);
+
+      if (deleteError) throw new Error(deleteError.message);
+
+      // Update all related claims to resolved
+      await supabase
+        .from("claims")
+        .update({ status: "resolved" })
+        .eq("item_id", itemId);
+
+      setShowModal(false);
+      setSubmitting(false);
+
+      alert(
+        "🎉 Item successfully reunited with its owner! The item has been removed from the lost items list.",
+      );
+      navigate("/lost-items");
+    } catch (err) {
+      console.error("Auto resolve error:", err.message);
+      setSubmitting(false);
+    }
+  };
   const getCategoryBadgeColor = (category) => {
     const colors = {
       electronics: "bg-blue-100 text-blue-800",
@@ -96,7 +191,6 @@ const LostItemDetail = () => {
     return colors[category] || "bg-gray-100 text-gray-800";
   };
 
-  // Loading state
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
@@ -111,7 +205,6 @@ const LostItemDetail = () => {
     );
   }
 
-  // Item not found state
   if (!item) {
     return (
       <div className="flex flex-col min-h-screen bg-gray-50">
@@ -123,7 +216,7 @@ const LostItemDetail = () => {
               <p className="text-gray-600 text-lg">Item not found</p>
               <button
                 onClick={() => navigate("/lost-items")}
-                className="mt-4 inline-block text-verde hover:underline"
+                className="mt-4 text-verde hover:underline"
               >
                 Back to Lost Items
               </button>
@@ -133,176 +226,247 @@ const LostItemDetail = () => {
       </div>
     );
   }
+
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      <Navbar onMenuClick={toggleSidebar} isSidebarOpen={isSidebarOpen} />
-      <div className="flex flex-1">
-        <Dashbar isOpen={isSidebarOpen} onClose={closeSidebar} />
-        <main className="flex-1 p-6 md:ml-64 mt-3">
-          <div className="max-w-4xl">
-            <div className="mb-8">
+    <>
+      <div className="flex flex-col min-h-screen bg-gray-50">
+        <Navbar onMenuClick={toggleSidebar} isSidebarOpen={isSidebarOpen} />
+        <div className="flex flex-1">
+          <Dashbar isOpen={isSidebarOpen} onClose={closeSidebar} />
+          <main className="flex-1 p-6 md:ml-64 mt-3">
+            <div className="max-w-4xl">
+              <div className="mb-8">
+                <button
+                  onClick={() => navigate("/lost-items")}
+                  className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors mb-4"
+                >
+                  <ArrowLeft size={20} />
+                  <span className="text-sm font-medium">
+                    Back to Lost Items
+                  </span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left Column */}
+                <div className="lg:col-span-2">
+                  <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6 border border-gray-200">
+                    <img
+                      src={item.image_url}
+                      alt={item.item_name}
+                      className="w-full h-96 object-cover"
+                    />
+                  </div>
+
+                  <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+                    <div className="flex items-start justify-between mb-6">
+                      <div>
+                        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                          {item.item_name}
+                        </h1>
+                        <span
+                          className={`inline-block px-4 py-1 rounded-full text-sm font-semibold ${getCategoryBadgeColor(item.category)}`}
+                        >
+                          {item.category.charAt(0).toUpperCase() +
+                            item.category.slice(1)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6 border-t border-gray-200 pt-6">
+                      <div>
+                        <div className="flex items-center gap-3 mb-2">
+                          <MapPin className="h-5 w-5 text-verde" />
+                          <h3 className="text-sm font-semibold text-gray-700 uppercase">
+                            Location Lost
+                          </h3>
+                        </div>
+                        <p className="text-lg text-gray-900 ml-8">
+                          {item.location}
+                        </p>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center gap-3 mb-2">
+                          <Calendar className="h-5 w-5 text-verde" />
+                          <h3 className="text-sm font-semibold text-gray-700 uppercase">
+                            Date Lost
+                          </h3>
+                        </div>
+                        <p className="text-lg text-gray-900 ml-8">
+                          {new Date(item.date_lost).toLocaleDateString(
+                            "en-US",
+                            {
+                              weekday: "long",
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            },
+                          )}
+                        </p>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center gap-3 mb-2">
+                          <FileText className="h-5 w-5 text-verde" />
+                          <h3 className="text-sm font-semibold text-gray-700 uppercase">
+                            Description
+                          </h3>
+                        </div>
+                        <p className="text-gray-900 ml-8 leading-relaxed">
+                          {item.description}
+                        </p>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-3 mb-2">
+                          <User className="h-5 w-5 text-verde" />
+                          <h3 className="text-sm font-semibold text-gray-700 uppercase">
+                            Reported By
+                          </h3>
+                        </div>
+                        <p className="text-lg text-gray-900 ml-8">
+                          {reporter
+                            ? `${reporter.first_name} ${reporter.last_name} `
+                            : "Anonymous"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {/* Close left column div */}
+                {/* Right Column */}
+                <div className="lg:col-span-1">
+                  <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200 sticky top-24">
+                    <h2 className="text-xl font-bold text-gray-900 mb-4">
+                      Did you find this item?
+                    </h2>
+                    <p className="text-gray-600 text-sm mb-6">
+                      If you've located this lost item, please click the button
+                      below to notify the owner and help return it.
+                    </p>
+
+                    {!foundConfirmed ? (
+                      <button
+                        onClick={handleFoundThisItem}
+                        className="w-full flex items-center justify-center gap-2 bg-verde hover:bg-verde/90 text-white py-3 px-4 rounded-lg font-semibold transition-colors"
+                      >
+                        <CheckCircle className="h-5 w-5" />I Found This Item
+                      </button>
+                    ) : (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                          <p className="font-semibold text-green-800">
+                            Thank You!
+                          </p>
+                        </div>
+                        <p className="text-sm text-green-700">
+                          The item owner will be notified about your report.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="mt-6 pt-6 border-t border-gray-200">
+                      <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                        About This Report
+                      </h3>
+                      <ul className="text-xs text-gray-600 space-y-2">
+                        <li className="flex items-start gap-2">
+                          <span className="text-verde mt-1">•</span>
+                          <span>
+                            Reported as lost on{" "}
+                            {new Date(item.date_lost).toLocaleDateString()}
+                          </span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-verde mt-1">•</span>
+                          <span>
+                            Click "I Found This Item" to notify the owner
+                          </span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-verde mt-1">•</span>
+                          <span>You will be connected with the item owner</span>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+
+      {/* {/* ✅ Verification Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-xl font-bold text-gray-900">
+                Verify Your Claim
+              </h2>
               <button
-                onClick={() => navigate("/lost-items")}
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors mb-4"
+                onClick={() => setShowModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
               >
-                <ArrowLeft size={20} />
-                <span className="text-sm font-medium">Back to Lost Items</span>
+                <X size={22} />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column */}
-              <div className="lg:col-span-2">
-                {/* Image */}
-                <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6 border border-gray-200">
-                  <img
-                    src={item.image_url}
-                    alt={item.item_name}
-                    className="w-full h-96 object-cover"
-                  />
-                </div>
+            <p className="text-sm text-gray-500 mb-5">
+              Please provide your matric number and describe the item to verify
+              that it belongs to you.
+            </p>
 
-                {/* Details Card */}
-                <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-                  <div className="flex items-start justify-between mb-6">
-                    <div>
-                      <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                        {item.item_name} {/* ✅ Supabase column */}
-                      </h1>
-                      <span
-                        className={`inline-block px-4 py-1 rounded-full text-sm font-semibold ${getCategoryBadgeColor(item.category)}`}
-                      >
-                        {item.category.charAt(0).toUpperCase() +
-                          item.category.slice(1)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-6 border-t border-gray-200 pt-6">
-                    <div>
-                      <div className="flex items-center gap-3 mb-2">
-                        <MapPin className="h-5 w-5 text-verde" />
-                        <h3 className="text-sm font-semibold text-gray-700 uppercase">
-                          Location Lost
-                        </h3>
-                      </div>
-                      <p className="text-lg text-gray-900 ml-8">
-                        {item.location}
-                      </p>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-3 mb-2">
-                        <Calendar className="h-5 w-5 text-verde" />
-                        <h3 className="text-sm font-semibold text-gray-700 uppercase">
-                          Date Lost
-                        </h3>
-                      </div>
-                      <p className="text-lg text-gray-900 ml-8">
-                        {new Date(item.date_lost).toLocaleDateString("en-US", {
-                          /* ✅ Supabase column */ weekday: "long",
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })}
-                      </p>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-3 mb-2">
-                        <FileText className="h-5 w-5 text-verde" />
-                        <h3 className="text-sm font-semibold text-gray-700 uppercase">
-                          Description
-                        </h3>
-                      </div>
-                      <p className="text-gray-900 ml-8 leading-relaxed">
-                        {item.description}
-                      </p>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-3 mb-2">
-                        <User className="h-5 w-5 text-verde" />
-                        <h3 className="text-sm font-semibold text-gray-700 uppercase">
-                          Reported By
-                        </h3>
-                      </div>
-                      <p className="text-lg text-gray-900 ml-8">
-                        {/* ✅ Real name from profiles table */}
-                        {reporter
-                          ? `${reporter.first_name} ${reporter.last_name}`
-                          : "Anonymous"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column - Action Card */}
-              <div className="lg:col-span-1">
-                <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200 sticky top-24">
-                  <h2 className="text-xl font-bold text-gray-900 mb-4">
-                    Did you find this item?
-                  </h2>
-                  <p className="text-gray-600 text-sm mb-6">
-                    If you've located this lost item, please click the button
-                    below to notify the owner and help return it.
-                  </p>
-
-                  {!foundConfirmed ? (
-                    <button
-                      onClick={handleFoundThisItem}
-                      className="w-full flex items-center justify-center gap-2 bg-verde hover:bg-verde/90 text-white py-3 px-4 rounded-lg font-semibold transition-colors"
-                    >
-                      <CheckCircle className="h-5 w-5" />I Found This Item
-                    </button>
-                  ) : (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                        <p className="font-semibold text-green-800">
-                          Thank You!
-                        </p>
-                      </div>
-                      <p className="text-sm text-green-700">
-                        The item owner will be notified about your report.
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="mt-6 pt-6 border-t border-gray-200">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">
-                      About This Report
-                    </h3>
-                    <ul className="text-xs text-gray-600 space-y-2">
-                      <li className="flex items-start gap-2">
-                        <span className="text-verde mt-1">•</span>
-                        <span>
-                          Reported as lost on{" "}
-                          {new Date(item.date_lost).toLocaleDateString()}
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-verde mt-1">•</span>
-                        <span>
-                          Contact the owner by clicking "I Found This Item"
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-verde mt-1">•</span>
-                        <span>
-                          You will be able to communicate with the item owner
-                        </span>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
+            {/* Matric Number Field */}
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Matric Number
+              </label>
+              <input
+                type="text"
+                value={matricNumber}
+                onChange={(e) => setMatricNumber(e.target.value)}
+                placeholder="e.g. 210401001"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-verde focus:border-verde transition-colors text-sm"
+              />
             </div>
+
+            {/* Description Textarea */}
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Description
+              </label>
+              <textarea
+                rows={4}
+                value={claimDescription}
+                onChange={(e) => setClaimDescription(e.target.value)}
+                placeholder="e.g. I am the owner of this item because..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-verde focus:border-verde transition-colors resize-none text-sm"
+              />
+            </div>
+
+            {/* Modal Buttons */}
+            <button
+              onClick={handleSubmitClaim}
+              disabled={submitting}
+              className="w-full mt-2 bg-verde hover:bg-verde/90 text-white py-3 rounded-lg font-semibold transition-colors"
+            >
+              {submitting ? "Submitting..." : "Submit Claim"}
+            </button>
+
+            <button
+              onClick={() => setShowModal(false)}
+              className="w-full mt-2 py-3 text-gray-600 hover:text-gray-900 font-medium transition-colors"
+            >
+              Cancel
+            </button>
           </div>
-        </main>
-      </div>
-    </div>
+        </div>
+      )}
+    </>
   );
 };
 

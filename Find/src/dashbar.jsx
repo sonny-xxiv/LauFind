@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   X,
 } from "lucide-react";
+import LauLogo from "/lau.png";
 
 const navItems = [
   { label: "Dashboard", Icon: LayoutDashboard },
@@ -16,6 +17,7 @@ const navItems = [
   { label: "Claims", Icon: ClipboardCheck },
 ];
 import { Link, useNavigate } from "react-router-dom";
+
 const Dashbar = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   return (
@@ -37,12 +39,19 @@ const Dashbar = ({ isOpen, onClose }) => {
         <div className="p-6 flex flex-col text-xs h-full">
           {/* Mobile Close Button */}
           <div className="flex items-center justify-between mb-3">
-            <Link
-              to="/dashboard"
-              className="text-white text-3xl cursor-pointer font-semibold"
-            >
-              LauFind
-            </Link>
+            <div className="flex items-center gap-2">
+              <img
+                src={LauLogo}
+                alt="LauLogo"
+                className="h-8 w-8 object-contain"
+              />
+              <Link
+                to="/dashboard"
+                className="text-white text-3xl cursor-pointer font-semibold"
+              >
+                LauFind
+              </Link>
+            </div>
             <button
               onClick={onClose}
               className="md:hidden p-2 rounded-lg hover:bg-white/20 transition duration-200"

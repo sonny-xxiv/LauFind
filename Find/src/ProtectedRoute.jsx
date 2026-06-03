@@ -4,11 +4,12 @@ import { useAuth } from "./AuthContext";
 const ProtectedRoute = ({ children }) => {
   const { currentUser, loading } = useAuth();
 
-  if (loading) {
-    return <div>Loading...</div>;
-  }
+  if (loading) return <p>Loading...</p>;
 
-  return currentUser ? children : <Navigate to="/signin" />;
+  // ✅ Redirect to signin if not logged in
+  if (!currentUser) return <Navigate to="/signin" />;
+
+  return children;
 };
 
 export default ProtectedRoute;
